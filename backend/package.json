@@ -1,0 +1,20 @@
+{
+    "version": "1.0.0",
+    "license": "ISC",
+    "name": "backend",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "description": "",
+    "author": "",
+    "main": "server.js",
+    "dependencies": {
+        "cors": "^2.8.6",
+        "express": "^5.2.1",
+        "loudness": "^0.4.2",
+        "naudiodon": "^2.3.6",
+        "node-wav-player": "^1.0.0",
+        "wav": "^1.0.2",
+        "ws": "^8.19.0"
+    }
+}
