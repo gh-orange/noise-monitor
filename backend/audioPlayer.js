@@ -230,6 +230,7 @@ class AudioPlayer extends EventEmitter {
 
   async playWithHA() {
     try {
+      await fetch('http://localhost:8123/api/webhook/-EKeuB-e6uD-XyGydI_hu5qqg', { method:'POST' });
     } catch(err) {
     }
   }
@@ -258,6 +259,7 @@ class AudioPlayer extends EventEmitter {
 
   stop() {
     console.log("Stop playback");
+    fetch('http://localhost:8123/api/webhook/-2qzPzP9tfmcSNhpbAmFSGWeD', { method:'POST' });
     if (this.isPlaying) {
       try {
         wavPlayer.stop();

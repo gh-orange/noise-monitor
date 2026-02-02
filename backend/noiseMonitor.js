@@ -1,4 +1,4 @@
-ï»¿const AudioRecorder = require("./audioRecorder");
+const AudioRecorder = require("./audioRecorder");
 const AudioPlayer = require("./audioPlayer");
 const AudioCapture = require("./audioCapture");
 const BrightnessController = require('./brightnessController');
@@ -70,8 +70,8 @@ class NoiseMonitor extends EventEmitter {
     const rc = 107.7 * 107.7;
     const rd = 737.9 * 737.9;
     
-    const numerator = ra * f2 * f2 * f2 * f2;
-    const denominator = (f2 + rb) * Math.sqrt((f2 + rc) * (f2 + rd)) * (f2 + ra) * (f2 + 12200 * 12200);
+    const numerator = ra * f2 * f2;
+    const denominator = (f2 + rb) * Math.sqrt((f2 + rc) * (f2 + rd)) * (f2 + ra);
     
     const aWeight = numerator / denominator;
     
@@ -100,7 +100,7 @@ class NoiseMonitor extends EventEmitter {
     
     const weightedSamples = IFFT(phasors);
     
-    return weightedSamples.map(val => Math.round(val));
+    return weightedSamples.map(val => { if (Array.isArray(val)) return Math.round(val[0]); return Math.round(val); });
   }
 
   applyFrequencyRangeFilter(samples) {
@@ -297,7 +297,7 @@ class NoiseMonitor extends EventEmitter {
      const reference = 1000;
      const effectiveReference = reference * 0.3;
      
-     // æ·»åŠ ä¿æŠ¤ï¼šç¡®ä¿ log10 çš„å‚æ•°æœ‰æ•ˆ
+     // Ìí¼Ó±£»¤£ºÈ·±£ log10 µÄ²ÎÊıÓĞĞ§
      const logArg = (rms + 1) / effectiveReference;
      if (logArg <= 0 || !isFinite(logArg)) return 0;
      const decibel = 20 * Math.log10(logArg);
@@ -318,7 +318,7 @@ class NoiseMonitor extends EventEmitter {
      
      const rms = Math.sqrt(sum / samples.length);
      const reference = 1000;
-     // æ·»åŠ ä¿æŠ¤ï¼šå¦‚æœ rms å¤ªå°æˆ–æ— æ•ˆï¼Œè¿”å› 0 è€Œä¸æ˜¯ NaN
+     // Ìí¼Ó±£»¤£ºÈç¹û rms Ì«Ğ¡»òÎŞĞ§£¬·µ»Ø 0 ¶ø²»ÊÇ NaN
      if (rms <= 0 || !isFinite(rms)) return 0;
      const decibel = 20 * Math.log10(rms / reference);
      const adjustedDecibel = decibel + 96;
@@ -398,7 +398,7 @@ class NoiseMonitor extends EventEmitter {
     console.log("Updating config:", newConfig);
     this.config = { ...this.config, ...newConfig };
     
-   if (newConfig.sampleRate) {
+   if (newConfig.sampleRate || newConfig.enableAWeighting !== undefined) {
      this.aWeightingCoefficients = this.precomputeAWeightingCoefficients();
    }
     
