@@ -1,4 +1,4 @@
-﻿import {useState, useEffect, useCallback, useRef} from "react";
+import {useState, useEffect, useCallback, useRef} from "react";
 
 const WS_URL = "ws://localhost:3000";
 
@@ -18,7 +18,10 @@ export function useWebSocket() {
         maxRecordDuration: 10800,
         gainFactor: 901,
         pauseDetectionDuringPlayback: true,
-        resumeDetectionDelay: 2
+        resumeDetectionDelay: 2,
+        useFastDecibel: true,
+        enableAWeighting: false,
+        voiceFrequencyRange: { min: 85, max: 801 }
     });
     const [currentPlayingId,setCurrentPlayingId] = useState(null);
     const [playbackDuration,setPlaybackDuration] = useState(null);
@@ -65,8 +68,8 @@ export function useWebSocket() {
         case "playbackStarted":
             setIsPlaying(true);
             if (data.data && data.data.filename) {
-                const filename = data.data.filename.replace(/^.+[\\\/]/, "");
-                const dateMatch = data.data.filename.match(/[\\\/](\d{4}-\d{2}-\d{2})[\\\/]/);
+                const filename = data.data.filename.replace(/^.+[\\/]/, "");
+                const dateMatch = data.data.filename.match(/[\\/](\d{4}-\d{2}-\d{2})[\\/]/);
                 const id = dateMatch ? "/" + dateMatch[1] + "/" + filename : "/" + filename;
                 setCurrentPlayingId(id);
             }

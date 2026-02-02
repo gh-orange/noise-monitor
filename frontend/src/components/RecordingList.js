@@ -1,14 +1,17 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 
 export default function RecordingList({ recordings, currentPlayingId, playbackDuration, playbackStartTime, onPlay, onDelete }) {
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const initializedRef = useRef(false);
+  const previousRecordingsLengthRef = useRef(0);
 
-  // Expand all date groups by default
+  // Expand all date groups when recordings are first loaded
   useEffect(() => {
-    if (recordings.length > 0) {
+    // Check if recordings went from 0 to non-zero (first load)
+    if (!initializedRef.current && recordings.length > 0 && previousRecordingsLengthRef.current === 0) {
       const grouped = {};
       recordings.forEach(recording => {
         const date = new Date(recording.created);
@@ -17,7 +20,10 @@ export default function RecordingList({ recordings, currentPlayingId, playbackDu
         grouped[dateKey].push(recording);
       });
       setExpandedGroups(new Set(Object.keys(grouped)));
+      initializedRef.current = true;
     }
+    // Update previous length ref
+    previousRecordingsLengthRef.current = recordings.length;
   }, [recordings]);
 
   // Update playback progress

@@ -1,4 +1,4 @@
-﻿export default function Settings({ config, onConfigChange }) {
+export default function Settings({ config, onConfigChange }) {
 
   const handleRangeChange = (key, value) => {
     onConfigChange({ [key]: parseInt(value) });
@@ -12,13 +12,17 @@
     onConfigChange({ [key]: checked });
   };
 
-  const durationMap = {
-    300: "5 min",
-    1800: "30 min",
-    3600: "1 hour",
-    7200: "2 hours",
-    10800: "3 hours"
+  const handleVoiceFreqChange = (key, value) => {
+    const voiceFrequencyRange = config.voiceFrequencyRange || { min: 85, max: 801 };
+    onConfigChange({ 
+      voiceFrequencyRange: { 
+        ...voiceFrequencyRange, 
+        [key]: parseInt(value) 
+      } 
+    });
   };
+
+  const voiceFrequencyRange = config.voiceFrequencyRange || { min: 85, max: 801 };
 
   return (
     <div className="settings">
@@ -109,6 +113,38 @@
           <option value="30">30 s</option>
           <option value="60">1 min</option>
         </select>
+      </div>
+      <div className="setting-item">
+        <label>
+          <span className="setting-label">Decibel Calculation Mode</span>
+        </label>
+        <select value={config.useFastDecibel ? 'fast' : 'standard'}
+          className="neon-select"
+          onChange={(e) => handleSelectChange("useFastDecibel", e.target.value === 'fast')}>
+          <option value="fast">Enhanced (Fast)</option>
+          <option value="standard">Standard</option>
+        </select>
+      </div>
+      <div className="setting-item">
+        <label className="neon-checkbox-label">
+          <input type="checkbox" checked={config.enableAWeighting}
+            className="neon-checkbox"
+            onChange={(e) => handleCheckboxChange("enableAWeighting", e.target.checked)} />
+          <span className="checkbox-text">Voice A-Weighting Filter</span>
+          <span className="checkmark"></span>
+        </label>
+      </div>
+      <div className="setting-item">
+        <label>
+          <span className="setting-label">Freq Range Filter</span>
+          <span className="setting-value neon-yellow">{voiceFrequencyRange.min}-{voiceFrequencyRange.max} Hz</span>
+        </label>
+        <input type="range" min="20" max="500" value={voiceFrequencyRange.min}
+          className="neon-range yellow-range"
+          onChange={(e) => handleVoiceFreqChange("min", e.target.value)} />
+        <input type="range" min="500" max="2000" value={voiceFrequencyRange.max}
+          className="neon-range yellow-range"
+          onChange={(e) => handleVoiceFreqChange("max", e.target.value)} />
       </div>
     </div>
   );

@@ -114,9 +114,13 @@ function handleMessage(ws, data) {
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
           loadRecordings();
-          ws.send(JSON.stringify({ type: "deleteResult", success: true }));
-          ws.send(JSON.stringify({ type: "recordings", recordings: recordings }));
-          ws.send(JSON.stringify({ type: "config", config: config }));
+          clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({ type: "deleteResult", success: true }));
+              client.send(JSON.stringify({ type: "recordings", recordings: recordings }));
+              client.send(JSON.stringify({ type: "config", config: config }));
+            }
+          });
         } else {
           ws.send(JSON.stringify({ type: "deleteResult", success: false, error: "File not found" }));
         }
@@ -222,7 +226,6 @@ server.listen(PORT, () => {
   console.log("Server running at http://localhost:" + PORT);
   loadRecordings();
   monitor.start();
-  console.log('Screen brightness set to 0');
   console.log("Detection started automatically");
 });
 

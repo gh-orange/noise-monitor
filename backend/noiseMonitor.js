@@ -4,6 +4,8 @@ const AudioCapture = require("./audioCapture");
 const BrightnessController = require('./brightnessController');
 const VolumeController = require('./volumeController');
 const EventEmitter = require("events");
+const FFT = require('fft-js').fft;
+const IFFT = require('fft-js').ifft;
 
 class NoiseMonitor extends EventEmitter {
   constructor(config) {
@@ -18,8 +20,11 @@ class NoiseMonitor extends EventEmitter {
     maxRecordDuration: 10800,
     gainFactor: 901,
     pauseDetectionDuringPlayback: true,
+    useFastDecibel: true,
+    enableAWeighting: false,
+    voiceFrequencyRange: { min: 85, max: 801 },
     ...config
-  };
+   };
    
    this.currentDecibel = 0;
    this.aboveThresholdStartTime = null;
@@ -29,6 +34,8 @@ class NoiseMonitor extends EventEmitter {
    this.isRunning = false;
    this.peakDecibel = 0;
    this.isDetectingPaused = false;
+   this.voiceDetected = false;
+  this.aWeightingCoefficients = this.precomputeAWeightingCoefficients();
   
    this.audioRecorder = new AudioRecorder(this.config);
    this.audioPlayer = new AudioPlayer(this.config);
@@ -42,6 +49,91 @@ class NoiseMonitor extends EventEmitter {
    this.setupPlayerCallbacks();
    this.setupCaptureCallbacks();
  }
+
+  precomputeAWeightingCoefficients() {
+    const coefficients = {};
+    const sampleRate = this.config.sampleRate || 16000;
+    
+    for (let freq = 20; freq <= sampleRate / 2; freq += 1) {
+      coefficients[freq] = this.calculateAWeightingCoefficient(freq);
+    }
+    
+    return coefficients;
+  }
+
+  calculateAWeightingCoefficient(f) {
+    if (f <= 0) return 0;
+    
+    const f2 = f * f;
+    const ra = 12200 * 12200;
+    const rb = 20.6 * 20.6;
+    const rc = 107.7 * 107.7;
+    const rd = 737.9 * 737.9;
+    
+    const numerator = ra * f2 * f2 * f2 * f2;
+    const denominator = (f2 + rb) * Math.sqrt((f2 + rc) * (f2 + rd)) * (f2 + ra) * (f2 + 12200 * 12200);
+    
+    const aWeight = numerator / denominator;
+    
+    const aWeightDb = 20 * Math.log10(aWeight) + 2.0;
+
+    return Math.pow(10, aWeightDb / 20);
+  }
+
+  applyAWeighting(samples) {
+    if (!this.config.enableAWeighting) {
+      return samples;
+    }
+    
+    const sampleRate = this.config.sampleRate || 16000;
+    const phasors = FFT(samples);
+    
+    for (let i = 0; i < phasors.length; i++) {
+      const freq = (i * sampleRate) / phasors.length;
+      
+      const freqIndex = Math.min(Math.max(Math.round(freq), 20), Math.floor(sampleRate / 2));
+      const coefficient = this.aWeightingCoefficients[freqIndex] || 1;
+      
+      phasors[i][0] *= coefficient;
+      phasors[i][1] *= coefficient;
+    }
+    
+    const weightedSamples = IFFT(phasors);
+    
+    return weightedSamples.map(val => Math.round(val));
+  }
+
+  applyFrequencyRangeFilter(samples) {
+    if (!this.config.voiceFrequencyRange) {
+      return samples;
+    }
+    
+    const { min, max } = this.config.voiceFrequencyRange;
+    const sampleRate = this.config.sampleRate || 16000;
+    
+    if (min >= max) {
+      return samples;
+    }
+    
+    const phasors = FFT(samples);
+    const nyquist = sampleRate / 2;
+    
+    const minIndex = Math.floor((min / sampleRate) * phasors.length);
+    const maxIndex = Math.ceil((max / sampleRate) * phasors.length);
+    
+    for (let i = 0; i < phasors.length; i++) {
+      const freq = (i * sampleRate) / phasors.length;
+      
+      if (freq < min || freq > max) {
+        phasors[i][0] = 0;
+        phasors[i][1] = 0;
+      }
+    }
+    
+    const filteredSamples = IFFT(phasors);
+    
+    return filteredSamples.map(val => Math.round(val[0]));
+  }
   
   setupCaptureCallbacks() {
     this.audioCapture.on("audioData", (data) => {
@@ -159,12 +251,64 @@ class NoiseMonitor extends EventEmitter {
   }
   
   calculateDecibel(data) {
-     const samples = [];
-     for (let i = 0; i < data.length; i += 2) {
-       const sample = data.readInt16LE(i);
-       samples.push(sample);
+      const samples = [];
+      for (let i = 0; i < data.length; i += 2) {
+        const sample = data.readInt16LE(i);
+        samples.push(sample);
+      }
+      
+      if (samples.length === 0) return 0;
+     
+     let processedSamples = samples;
+     if (this.config.voiceFrequencyRange && 
+         (this.config.voiceFrequencyRange.min > 0 || this.config.voiceFrequencyRange.max < 8000)) {
+       processedSamples = this.applyFrequencyRangeFilter(processedSamples);
      }
      
+     if (this.config.enableAWeighting) {
+       processedSamples = this.applyAWeighting(processedSamples);
+     }
+      
+      if (this.config.useFastDecibel) {
+        return this.calculateFastDecibel(processedSamples);
+      }
+      
+      return this.calculateStandardDecibel(processedSamples);
+  }
+  
+  calculateFastDecibel(samples) {
+     if (samples.length === 0) return 0;
+     
+     let peak = 0;
+     for (let i = 0; i < samples.length; i++) {
+       const abs = Math.abs(samples[i]);
+       if (abs > peak) peak = abs;
+     }
+     
+     let sumAbs = 0;
+     for (let i = 0; i < samples.length; i++) {
+       sumAbs += Math.abs(samples[i]);
+     }
+     const avgAbs = sumAbs / samples.length;
+     
+     const rms = (peak * 0.7 + avgAbs * 0.3) / Math.sqrt(2);
+     
+     // Use a lower reference value (0.3x) for increased sensitivity
+     const reference = 1000;
+     const effectiveReference = reference * 0.3;
+     
+     // 添加保护：确保 log10 的参数有效
+     const logArg = (rms + 1) / effectiveReference;
+     if (logArg <= 0 || !isFinite(logArg)) return 0;
+     const decibel = 20 * Math.log10(logArg);
+     
+     // Adjust the offset
+     const adjustedDecibel = decibel + 86;
+     
+     return Math.max(0, adjustedDecibel);
+  }
+  
+  calculateStandardDecibel(samples) {
      if (samples.length === 0) return 0;
      
      let sum = 0;
@@ -173,10 +317,10 @@ class NoiseMonitor extends EventEmitter {
      }
      
      const rms = Math.sqrt(sum / samples.length);
-     
      const reference = 1000;
+     // 添加保护：如果 rms 太小或无效，返回 0 而不是 NaN
+     if (rms <= 0 || !isFinite(rms)) return 0;
      const decibel = 20 * Math.log10(rms / reference);
-     
      const adjustedDecibel = decibel + 96;
      return Math.max(0, adjustedDecibel);
   }
@@ -254,6 +398,10 @@ class NoiseMonitor extends EventEmitter {
     console.log("Updating config:", newConfig);
     this.config = { ...this.config, ...newConfig };
     
+   if (newConfig.sampleRate) {
+     this.aWeightingCoefficients = this.precomputeAWeightingCoefficients();
+   }
+    
     if (this.audioCapture && this.audioCapture.updateConfig) {
       this.audioCapture.updateConfig(this.config);
     }
@@ -285,5 +433,3 @@ class NoiseMonitor extends EventEmitter {
 }
 
 module.exports = NoiseMonitor;
-
-
