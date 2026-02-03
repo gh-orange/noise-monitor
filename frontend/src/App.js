@@ -1,4 +1,4 @@
-﻿import { useWebSocket } from "./hooks/useWebSocket";
+import { useWebSocket } from "./hooks/useWebSocket";
 import { useTheme } from "./hooks/useTheme";
 import Header from "./components/Header";
 import Waveform from "./components/Waveform";

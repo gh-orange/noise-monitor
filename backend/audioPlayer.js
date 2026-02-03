@@ -1,4 +1,4 @@
-﻿const EventEmitter = require("events");
+const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
 const wavPlayer = require("node-wav-player");
@@ -89,6 +89,9 @@ class AudioPlayer extends EventEmitter {
     };
     this.isPlaying = false;
     this.enhancedAudioFile = null;
+    this.playbackTimer = null;
+    this.timeoutTimer = null;
+
     this.ensureTempDir();
   }
 
@@ -236,11 +239,11 @@ class AudioPlayer extends EventEmitter {
   }
 
   async playWithTimeout(filename, durationSeconds) {
-    console.log("[AudioPlayer] Starting playback, will stop in " + durationSeconds + " s automatically");
+   console.log("[AudioPlayer] Starting playback, will stop in " + durationSeconds + " s automatically");
 
-    // Use setTimeout to implement timeout stop
-    const timeoutPromise = new Promise((resolve) => {
-      setTimeout(() => {
+   // Use setTimeout to implement timeout stop
+   const timeoutPromise = new Promise((resolve) => {
+      this.timeoutTimer = setTimeout(() => {
         console.log("[AudioPlayer] Playback timeout, stopping actively");
         this.stop();
         resolve();
@@ -253,22 +256,26 @@ class AudioPlayer extends EventEmitter {
       await Promise.race([playPromise, timeoutPromise]);
     } finally {
       console.log("[AudioPlayer] Playback completed");
+      if (this.timeoutTimer) {
+        clearTimeout(this.timeoutTimer);
+        this.timeoutTimer = null;
+      }
     }
   }
 
 
   stop() {
-    console.log("Stop playback");
-    fetch('http://localhost:8123/api/webhook/-2qzPzP9tfmcSNhpbAmFSGWeD', { method:'POST' });
-    if (this.isPlaying) {
-      try {
-        wavPlayer.stop();
-        console.log("Playback has been stopped");
-      } catch (err) {
-        console.warn("Stop playback warning: " + err.message);
-      }
-      this.isPlaying = false;
-      this.emit("onPlaybackStopped");
+   console.log("Stop playback");
+   try { fetch('http://localhost:8123/api/webhook/-2qzPzP9tfmcSNhpbAmFSGWeD', { method:'POST' }).catch(() => {}); } catch(e) {}
+   if (this.isPlaying) {
+     try {
+       wavPlayer.stop();
+       console.log("Playback has been stopped");
+     } catch (err) {
+       console.warn("Stop playback warning: " + err.message);
+     }
+     this.isPlaying = false;
+     this.emit("onPlaybackStopped");
     }
     this.cleanup();
   }
@@ -285,13 +292,16 @@ class AudioPlayer extends EventEmitter {
   schedulePlayback(filename, delay = 0) {
     if (this.playbackTimer) {
       clearTimeout(this.playbackTimer);
+      this.playbackTimer = null;
     }
+    
     const actualDelay = delay > 0 ? delay : this.config.playDelay;
     console.log("Scheduled to play in " + actualDelay + " seconds: " + filename);
     // Emit event immediately to pause detection when scheduled
     this.emit("onPlaybackScheduled", { filename, delay: actualDelay });
     if (actualDelay >= 0) {
       this.playbackTimer = setTimeout(() => {
+        this.playbackTimer = null;
         this.play(filename);
       }, actualDelay * 1000);
     }
@@ -307,7 +317,40 @@ class AudioPlayer extends EventEmitter {
       this.enhancedAudioFile = null;
     }
   }
+
+  destroy() {
+    console.log("[AudioPlayer] Destroying audio player and cleaning up resources");
+    
+    // Clear playback timer
+    if (this.playbackTimer) {
+      clearTimeout(this.playbackTimer);
+      this.playbackTimer = null;
+    }
+    
+    // Clear timeout timer
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer);
+      this.timeoutTimer = null;
+    }
+    
+    // Stop playback if active
+    this.stop();
+    
+    // Cleanup temp files
+    this.cleanup();
+    
+    // Remove all event listeners
+    this.removeAllListeners();
+  }
 }
 
 module.exports = AudioPlayer;
+
+
+
+
+
+
+
+
 

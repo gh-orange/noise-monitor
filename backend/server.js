@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
@@ -150,7 +150,6 @@ function handleMessage(ws, data) {
 }
 
 monitor.on("decibel", (data) => {
-  console.log("Sending decibel update:", data.decibel);
   clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({ type: "decibelUpdate", decibel: data.decibel }));
@@ -229,3 +228,56 @@ server.listen(PORT, () => {
   console.log("Detection started automatically");
 });
 
+
+function gracefulShutdown(signal) {
+  console.log(`\n[Server] Received ${signal}, shutting down gracefully...`);
+  
+  if (monitor) {
+    console.log('[Server] Stopping monitor...');
+    try {
+      monitor.stop();
+    } catch (err) {
+      console.error('[Server] Error stopping monitor:', err.message);
+    }
+  }
+  
+  if (monitor && monitor.audioPlayer) {
+    console.log('[Server] Cleaning up audio player...');
+    try {
+      monitor.audioPlayer.destroy();
+    } catch (err) {
+      console.error('[Server] Error destroying audio player:', err.message);
+    }
+  }
+  
+  console.log('[Server] Closing WebSocket server...');
+  wss.close(() => {
+    console.log('[Server] WebSocket server closed');
+  });
+  
+  console.log('[Server] Closing HTTP server...');
+  server.close(() => {
+    console.log('[Server] HTTP server closed');
+    console.log('[Server] Shutdown complete');
+    process.exit(0);
+  });
+  
+  setTimeout(() => {
+    console.error('[Server] Forcing shutdown after timeout...');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err);
+  console.error(err.stack);
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Server] Unhandled rejection at:', promise, 'reason:', reason);
+  gracefulShutdown('unhandledRejection');
+});

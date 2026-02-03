@@ -24,6 +24,8 @@
 	margin: 0;
 	padding: 0;
 	box-sizing: border-box;
+	will-change: transform;
+	transform: translateZ(0);
 }
 
 @keyframes gradientBG {
@@ -203,8 +205,6 @@ main {
 	padding: 16px;
 	align-items: stretch;
 	min-height: 0;
-	overflow-y: auto;
-	overflow: visible;
 	flex: 1;
 }
 
@@ -226,6 +226,9 @@ main {
 	min-height: 400px;
 	overflow: visible;
 }
+	will-change: transform;
+	transform: translateZ(0);
+	backface-visibility: hidden;
 
 .waveform-container::before {
 	content: "";
@@ -489,10 +492,14 @@ main {
 	flex-direction: column;
 	align-self: stretch;
 	min-height: 0;
+        max-height: 246vh;
 	overflow: hidden;
 	border: 1px solid rgba(0, 255, 255, 0.1);
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+	will-change: transform;
+	transform: translateZ(0);
+	backface-visibility: hidden;
 
 .recordings-list {
 	display: flex;
@@ -805,6 +812,9 @@ main {
 	.recording-item, .settings, .waveform-container, .recordings {
 		border-width: 2px;
 	}
+	will-change: transform;
+	transform: translateZ(0);
+	backface-visibility: hidden;
 
 	.decibel-value {
 		text-shadow: none;

@@ -7,7 +7,7 @@ start "Noise Monitor - Backend" cmd /c "node server.js"
 echo.
 echo [2/2] Starting Frontend Application...
 cd /d "%~dp0frontend"
-start "Noise Monitor - Frontend" cmd /c "npm start"
+start "Noise Monitor - Frontend" cmd /c "echo n | npm start"
 echo.
 echo Noise Monitor is starting...
 echo - Backend will run on http://localhost:3000

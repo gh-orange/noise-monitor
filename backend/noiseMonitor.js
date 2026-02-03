@@ -297,7 +297,6 @@ class NoiseMonitor extends EventEmitter {
      const reference = 1000;
      const effectiveReference = reference * 0.3;
      
-     // 添加保护：确保 log10 的参数有效
      const logArg = (rms + 1) / effectiveReference;
      if (logArg <= 0 || !isFinite(logArg)) return 0;
      const decibel = 20 * Math.log10(logArg);
@@ -318,7 +317,6 @@ class NoiseMonitor extends EventEmitter {
      
      const rms = Math.sqrt(sum / samples.length);
      const reference = 1000;
-     // 添加保护：如果 rms 太小或无效，返回 0 而不是 NaN
      if (rms <= 0 || !isFinite(rms)) return 0;
      const decibel = 20 * Math.log10(rms / reference);
      const adjustedDecibel = decibel + 96;
@@ -421,6 +419,42 @@ class NoiseMonitor extends EventEmitter {
   
   getPeakDecibel() {
     return this.peakDecibel;
+  }
+  
+  destroy() {
+    console.log('[NoiseMonitor] Destroying monitor, cleaning up all resources');
+    
+    // Stop monitoring
+    this.stop();
+    
+    // Destroy audio player to clean up all timers and resources
+    if (this.audioPlayer) {
+      console.log('[NoiseMonitor] Destroying audio player...');
+      this.audioPlayer.destroy();
+    }
+    
+    // Stop audio capture
+    if (this.audioCapture) {
+      try {
+        this.audioCapture.stop();
+      } catch (err) {
+        console.error('[NoiseMonitor] Error stopping audio capture:', err.message);
+      }
+    }
+    
+    // Stop audio recording if in progress
+    if (this.isRecording && this.audioRecorder) {
+      try {
+        this.audioRecorder.stopRecording();
+      } catch (err) {
+        console.error('[NoiseMonitor] Error stopping audio recorder:', err.message);
+      }
+    }
+    
+    // Remove all event listeners
+    this.removeAllListeners();
+    
+    console.log('[NoiseMonitor] Monitor destroyed successfully');
   }
   
   isDetecting() {
